@@ -1,17 +1,20 @@
 render_freq: 0
-episode_num: 100
+episode_num: 2
 use_seed: false
 save_freq: 15
 embodiment:
 - aloha-agilex
+# - curobo3635
+# - curobo3635
+# - 0.8
 language_num: 100
 domain_randomization:
-  random_background: true
-  cluttered_table: true
+  random_background: false
+  cluttered_table: false
   clean_background_rate: 0.02
   random_head_camera_dis: 0
   random_table_height: 0.03
-  random_light: true
+  random_light: false
   crazy_random_light_rate: 0.02
 camera:
   head_camera_type: D435
@@ -25,12 +28,12 @@ data_type:
   pointcloud: false
   observer: false
   endpose: false
-  qpos: true
+  qpos: false
   mesh_segmentation: false
   actor_segmentation: false
 pcd_down_sample_num: 1024
-pcd_crop: true
+pcd_crop: false
 save_path: ./data
 clear_cache_freq: 5
-collect_data: true
+collect_data: false
 eval_video_log: true

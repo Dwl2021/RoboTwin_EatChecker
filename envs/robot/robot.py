@@ -57,6 +57,11 @@ class Robot:
         self.left_fix_gripper_name = left_embodiment_args.get("fix_gripper_name", [])
         self.left_delta_matrix = np.array(left_embodiment_args.get("delta_matrix", [[1, 0, 0], [0, 1, 0], [0, 0, 1]]))
         self.left_inv_delta_matrix = np.linalg.inv(self.left_delta_matrix)
+        
+        # eat_only
+        self.left_delta_matrix_for_eat_checker = np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]])
+        self.left_inv_delta_matrix_for_eat_checker = np.linalg.inv(self.left_delta_matrix_for_eat_checker)
+        
         self.left_global_trans_matrix = np.array(
             left_embodiment_args.get("global_trans_matrix", [[1, 0, 0], [0, 1, 0], [0, 0, 1]]))
 
@@ -84,6 +89,11 @@ class Robot:
         self.right_fix_gripper_name = right_embodiment_args.get("fix_gripper_name", [])
         self.right_delta_matrix = np.array(right_embodiment_args.get("delta_matrix", [[1, 0, 0], [0, 1, 0], [0, 0, 1]]))
         self.right_inv_delta_matrix = np.linalg.inv(self.right_delta_matrix)
+        
+        # eat_only
+        self.right_delta_matrix_for_eat_checker = np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]])
+        self.right_inv_delta_matrix_for_eat_checker = np.linalg.inv(self.right_delta_matrix_for_eat_checker)
+        
         self.right_global_trans_matrix = np.array(
             right_embodiment_args.get("global_trans_matrix", [[1, 0, 0], [0, 1, 0], [0, 0, 1]]))
 
@@ -161,6 +171,10 @@ class Robot:
 
     def get_constraint_pose(self, ori_vec: list, arm_tag=None):
         inv_delta_matrix = (self.left_inv_delta_matrix if arm_tag == "left" else self.right_inv_delta_matrix)
+        return ori_vec[:3] + (ori_vec[-3:] @ np.linalg.inv(inv_delta_matrix)).tolist()
+    
+    def get_constraint_pose_for_eat_checker(self, ori_vec: list, arm_tag=None):
+        inv_delta_matrix = (self.left_inv_delta_matrix_for_eat_checker if arm_tag == "left" else self.right_inv_delta_matrix_for_eat_checker)
         return ori_vec[:3] + (ori_vec[-3:] @ np.linalg.inv(inv_delta_matrix)).tolist()
 
     def init_joints(self):
@@ -341,6 +355,17 @@ class Robot:
         gripper_pose_mat = gripper_pose_mat @ inv_delta_matrix
         gripper_pose_quat = t3d.quaternions.mat2quat(gripper_pose_mat)
         return sapien.Pose(gripper_pose_pos, gripper_pose_quat)
+    
+    def _trans_from_end_link_to_gripper_for_eat_checker(self, target_pose, arm_tag=None):
+        gripper_bias = 0.22
+        inv_delta_matrix = (self.left_inv_delta_matrix_for_eat_checker if arm_tag == "left" else self.right_inv_delta_matrix_for_eat_checker)
+        target_pose_arr = np.array(target_pose)
+        gripper_pose_pos, gripper_pose_quat = deepcopy(target_pose_arr[0:3]), deepcopy(target_pose_arr[-4:])
+        gripper_pose_mat = t3d.quaternions.quat2mat(gripper_pose_quat)
+        gripper_pose_pos += gripper_pose_mat @ np.array([0.12 - gripper_bias, 0, 0]).T
+        gripper_pose_mat = gripper_pose_mat @ inv_delta_matrix
+        gripper_pose_quat = t3d.quaternions.mat2quat(gripper_pose_mat)
+        return sapien.Pose(gripper_pose_pos, gripper_pose_quat)
 
     def left_plan_grippers(self, now_val, target_val):
         if self.communication_flag:
@@ -434,14 +459,17 @@ class Robot:
         use_attach=False,
         last_qpos=None,
     ):
+        constraint_pose_for_eat_checker = None
         if constraint_pose is not None:
             constraint_pose = self.get_constraint_pose(constraint_pose, arm_tag="left")
+            constraint_pose_for_eat_checker = self.get_constraint_pose_for_eat_checker(constraint_pose, arm_tag="left")
         if last_qpos is None:
             now_qpos = self.left_entity.get_qpos()
         else:
             now_qpos = deepcopy(last_qpos)
 
         trans_target_pose = self._trans_from_end_link_to_gripper(target_pose, arm_tag="left")
+        trans_target_pose_for_eat_checker = self._trans_from_end_link_to_gripper_for_eat_checker(target_pose, arm_tag="left")
 
         if self.communication_flag:
             self.left_conn.send({
@@ -455,8 +483,10 @@ class Robot:
         else:
             return self.left_planner.plan_path(
                 now_qpos,
-                trans_target_pose,
+                target_gripper_pose=trans_target_pose,
                 constraint_pose=constraint_pose,
+                target_pose_for_eat_checker=trans_target_pose_for_eat_checker,
+                constraint_pose_for_eat_checker=constraint_pose_for_eat_checker,
                 arms_tag="left",
             )
 
@@ -468,14 +498,17 @@ class Robot:
         use_attach=False,
         last_qpos=None,
     ):
+        constraint_pose_for_eat_checker = None
         if constraint_pose is not None:
             constraint_pose = self.get_constraint_pose(constraint_pose, arm_tag="right")
+            constraint_pose_for_eat_checker = self.get_constraint_pose_for_eat_checker(constraint_pose, arm_tag="right")
         if last_qpos is None:
             now_qpos = self.right_entity.get_qpos()
         else:
             now_qpos = deepcopy(last_qpos)
 
         trans_target_pose = self._trans_from_end_link_to_gripper(target_pose, arm_tag="right")
+        trans_target_pose_for_eat_checker = self._trans_from_end_link_to_gripper_for_eat_checker(target_pose, arm_tag="right")
 
         if self.communication_flag:
             self.right_conn.send({
@@ -489,8 +522,10 @@ class Robot:
         else:
             return self.right_planner.plan_path(
                 now_qpos,
-                trans_target_pose,
+                target_gripper_pose=trans_target_pose,
                 constraint_pose=constraint_pose,
+                target_pose_for_eat_checker=trans_target_pose_for_eat_checker,
+                constraint_pose_for_eat_checker=constraint_pose_for_eat_checker,
                 arms_tag="right",
             )
 

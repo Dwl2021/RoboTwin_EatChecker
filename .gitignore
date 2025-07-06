@@ -26,3 +26,5 @@ envs/curobo/*
 
 /*.json*
 /*.txt
+
+eat_check_config/*
