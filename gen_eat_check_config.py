@@ -59,6 +59,38 @@ TASKS = [
     "turn_switch"
 ]
 
+def check_missing_configs(config_dir: str = "eat_check_config") -> List[str]:
+    """Check for missing configuration files and return list of missing tasks"""
+    if not os.path.exists(config_dir):
+        print(f"Config directory {config_dir} does not exist, need to create all configuration files")
+        return TASKS
+    
+    existing_configs = set()
+    for filename in os.listdir(config_dir):
+        if filename.endswith('.yml'):
+            task_name = filename[:-4]  # Remove .yml suffix
+            existing_configs.add(task_name)
+    
+    missing_tasks = []
+    for task in TASKS:
+        if task not in existing_configs:
+            missing_tasks.append(task)
+    
+    print(f"Total tasks: {len(TASKS)}")
+    print(f"Existing config files: {len(existing_configs)}")
+    print(f"Missing config files: {len(missing_tasks)}")
+    
+    if missing_tasks:
+        print("\nMissing configuration files:")
+        for task in missing_tasks:
+            print(f"  - {task}.yml")
+    else:
+        print("\nAll configuration files already exist!")
+    
+    return missing_tasks
+
+
+
 def parse_pose_line(line: str) -> Tuple[List[float], List[float]]:
     """Parse a line containing pose information and return position and quaternion."""
     # Extract all numbers from the line
@@ -191,18 +223,35 @@ def generate_config(task_name: str, output_dir: str = "eat_check_config"):
     print(f"Configuration saved to: {output_file}")
 
 def generate_all_configs(output_dir: str = "eat_check_config"):
-    """Generate configuration files for all tasks."""
-    print(f"Starting to generate configs for all {len(TASKS)} tasks")
+    """Generate configuration files for missing tasks only."""
+    print(f"Checking configuration file status...")
+    missing_tasks = check_missing_configs(output_dir)
     
-    for i, task in enumerate(TASKS, 1):
-        print(f"\n[{i}/{len(TASKS)}] Processing task: {task}")
-        generate_config(task, output_dir)
+    if not missing_tasks:
+        print("All configuration files already exist, no need to generate!")
+        return
+    
+    print(f"\nStarting to generate {len(missing_tasks)} missing configuration files...")
+    
+    success_count = 0
+    for i, task in enumerate(missing_tasks, 1):
+        print(f"\n[{i}/{len(missing_tasks)}] Generating configuration file: {task}")
+        try:
+            generate_config(task, output_dir)
+            success_count += 1
+            print(f"✓ Successfully generated {task}.yml")
+        except Exception as e:
+            print(f"✗ Failed to generate {task}.yml: {e}")
+            continue
+    
+    print(f"\nConfiguration file generation completed! Successfully generated {success_count}/{len(missing_tasks)} configuration files")
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Generate EAT check configuration files')
-    parser.add_argument('--task', type=str, help='Specific task to process. If not provided, will process all tasks.')
+    parser.add_argument('--task', type=str, help='Specific task to process. If not provided, will check and generate missing configurations.')
     args = parser.parse_args()
+    
     # Clean up data directory before generating configs
     data_dir = "./data"
     if os.path.exists(data_dir):
