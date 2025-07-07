@@ -255,21 +255,23 @@ try:
             constraint_pose_for_eat_checker=None,
             arms_tag=None,
         ):
-            # transformation from world to arm's base
-            world_base_pose = np.concatenate([
-                np.array(self.robot_origion_pose.p),
-                np.array(self.robot_origion_pose.q),
-            ])
-
             # eat_only
+            eat_world_base_pose = np.array([0.0, -0.45, 0.75, 0.707107, 0.0, 0.0, 0.707107])
             world_target_pose_for_eat_checker = np.concatenate([np.array(target_pose_for_eat_checker.p), np.array(target_pose_for_eat_checker.q)])
-            base_target_pose_for_eat_checker_p, base_target_pose_for_eat_checker_q = self._trans_from_world_to_base(world_base_pose, world_target_pose_for_eat_checker)
+            base_target_pose_for_eat_checker_p, base_target_pose_for_eat_checker_q = self._trans_from_world_to_base(eat_world_base_pose, world_target_pose_for_eat_checker)
             
             # Format position and quaternion with fixed decimal places
             formatted_p = [f"{x:.8f}" for x in base_target_pose_for_eat_checker_p]
             formatted_q = [f"{x:.8f}" for x in base_target_pose_for_eat_checker_q]
             print(f"{arms_tag} arm target_pose : [{', '.join(formatted_p)}], [{', '.join(formatted_q)}]")
             print(f"{arms_tag} arm constraint_pose : {constraint_pose_for_eat_checker}")
+            
+            
+            # transformation from world to arm's base
+            world_base_pose = np.concatenate([
+                np.array(self.robot_origion_pose.p),
+                np.array(self.robot_origion_pose.q),
+            ])
             
             world_target_pose = np.concatenate([np.array(target_gripper_pose.p), np.array(target_gripper_pose.q)])
             target_pose_p, target_pose_q = self._trans_from_world_to_base(world_base_pose, world_target_pose)

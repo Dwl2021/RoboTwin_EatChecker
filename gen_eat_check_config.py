@@ -203,6 +203,21 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate EAT check configuration files')
     parser.add_argument('--task', type=str, help='Specific task to process. If not provided, will process all tasks.')
     args = parser.parse_args()
+    # Clean up data directory before generating configs
+    data_dir = "./data"
+    if os.path.exists(data_dir):
+        print(f"\nCleaning up {data_dir}...")
+        for file in os.listdir(data_dir):
+            file_path = os.path.join(data_dir, file)
+            try:
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    import shutil
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(f"Error: {e}")
+        print("Data directory cleaned")
     
     if args.task:
         generate_config(args.task)
