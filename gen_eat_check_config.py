@@ -7,56 +7,56 @@ import sys
 
 # 所有任务列表
 TASKS = [
-    "beat_block_hammer",
-    "adjust_bottle",
-    "blocks_ranking_rgb",
-    "blocks_ranking_size",
-    "click_alarmclock",
-    "click_bell",
+    #"beat_block_hammer",
+    #"adjust_bottle",
+    # "blocks_ranking_rgb",
+    # "blocks_ranking_size",
+    #"click_alarmclock",
+    #"click_bell",
     "dump_bin_bigbin",
     "grab_roller",
-    "handover_block",
-    "handover_mic",
-    "hanging_mug",
+    #"handover_block",
+    #"handover_mic",
+    #"hanging_mug",
     "lift_pot",
-    "move_can_pot",
-    "move_pillbottle_pad",
-    "move_playingcard_away",
-    "move_stapler_pad",
-    "open_laptop",
-    "open_microwave",
+    #"move_can_pot",
+    #"move_pillbottle_pad",
+    #"move_playingcard_away",
+    #"move_stapler_pad",
+    #"open_laptop",
+    #"open_microwave",
     "pick_diverse_bottles",
     "pick_dual_bottles",
-    "place_a2b_left",
-    "place_a2b_right",
+    #"place_a2b_left",
+    #"place_a2b_right",
     "place_bread_basket",
     "place_bread_skillet",
     "place_burger_fries",
     "place_can_basket",
     "place_cans_plasticbox",
-    "place_container_plate",
+    #"place_container_plate",
     "place_dual_shoes",
-    "place_empty_cup",
-    "place_fan",
-    "place_mouse_pad",
-    "place_object_basket",
-    "place_object_scale",
-    "place_object_stand",
-    "place_phone_stand",
-    "place_shoe",
-    "press_stapler",
-    "put_bottles_dustbin",
-    "put_object_cabinet",
-    "rotate_qrcode",
+    #"place_empty_cup",
+    #"place_fan",
+    #"place_mouse_pad",
+    #"place_object_basket",
+    #"place_object_scale",
+    #"place_object_stand",
+    #"place_phone_stand",
+    #"place_shoe",
+    #"press_stapler",
+    #"put_bottles_dustbin",
+    #"put_object_cabinet",
+    #"rotate_qrcode",
     "scan_object",
-    "shake_bottle",
-    "shake_bottle_horizontally",
+    #"shake_bottle",
+    #"shake_bottle_horizontally",
     "stack_blocks_three",
-    "stack_blocks_two",
+    #"stack_blocks_two",
     "stack_bowls_three",
     "stack_bowls_two",
-    "stamp_seal",
-    "turn_switch"
+    #"stamp_seal",
+    #"turn_switch"
 ]
 
 def check_missing_configs(config_dir: str = "eat_check_config") -> List[str]:
@@ -102,10 +102,14 @@ def parse_pose_line(line: str) -> Tuple[List[float], List[float]]:
     quaternion = numbers[3:]
     return position, quaternion
 
-def process_episode_data(lines: List[str], start_idx: int) -> Tuple[Dict[str, List[Dict]], int]:
-    """Process one episode's data and return the processed data and the next line index."""
-    episode_data = {"target_poses": [], "constraint_poses": []}
-    current_target = None
+def process_full_episode_data(lines: List[str], start_idx: int) -> Tuple[Dict[str, Dict], int]:
+    """Process one complete episode's data and return data for both arms separately."""
+    left_arm_data = {"target_poses": [], "constraint_poses": []}
+    right_arm_data = {"target_poses": [], "constraint_poses": []}
+    
+    current_left_target = None
+    current_right_target = None
+    
     i = start_idx
     
     while i < len(lines):
@@ -118,29 +122,55 @@ def process_episode_data(lines: List[str], start_idx: int) -> Tuple[Dict[str, Li
                 return None, i + 1  # Skip failed episodes
             break
             
-        # Parse target pose
-        if "target_pose" in line:
+        # Parse left arm target pose
+        if "left arm target_pose" in line:
             pos, quat = parse_pose_line(line)
-            current_target = pos + quat
-            print(f"    Found target pose: pos={pos}, quat={quat}")
+            current_left_target = pos + quat
+            print(f"    Found left arm target pose: pos={pos}, quat={quat}")
             
-        # Parse constraint pose
-        elif "constraint_pose" in line:
+        # Parse right arm target pose
+        elif "right arm target_pose" in line:
+            pos, quat = parse_pose_line(line)
+            current_right_target = pos + quat
+            print(f"    Found right arm target pose: pos={pos}, quat={quat}")
+            
+        # Parse left arm constraint pose
+        elif "left arm constraint_pose" in line:
             constraint = [0, 0, 0, 0, 0, 0]  # Default values
             if "None" not in line:
                 # Extract the constraint values if they exist
                 numbers = re.findall(r'-?\d+\.?\d*', line)
                 constraint = [float(n) for n in numbers]
-            print(f"    Found constraint pose: {constraint}")
+            print(f"    Found left arm constraint pose: {constraint}")
             
-            if current_target is not None:
-                episode_data["target_poses"].append(current_target)
-                episode_data["constraint_poses"].append(constraint)
-                current_target = None
+            if current_left_target is not None:
+                left_arm_data["target_poses"].append(current_left_target)
+                left_arm_data["constraint_poses"].append(constraint)
+                current_left_target = None
+                
+        # Parse right arm constraint pose
+        elif "right arm constraint_pose" in line:
+            constraint = [0, 0, 0, 0, 0, 0]  # Default values
+            if "None" not in line:
+                # Extract the constraint values if they exist
+                numbers = re.findall(r'-?\d+\.?\d*', line)
+                constraint = [float(n) for n in numbers]
+            print(f"    Found right arm constraint pose: {constraint}")
+            
+            if current_right_target is not None:
+                right_arm_data["target_poses"].append(current_right_target)
+                right_arm_data["constraint_poses"].append(constraint)
+                current_right_target = None
                 
         i += 1
         
-    return episode_data, i + 1
+    result = {}
+    if left_arm_data["target_poses"]:
+        result["left"] = left_arm_data
+    if right_arm_data["target_poses"]:
+        result["right"] = right_arm_data
+        
+    return result, i + 1
 
 def generate_config(task_name: str, output_dir: str = "eat_check_config"):
     """Generate configuration file for a given task."""
@@ -196,19 +226,25 @@ def generate_config(task_name: str, output_dir: str = "eat_check_config"):
     
     while i < len(output_lines):
         line = output_lines[i].strip()
+        # Look for any arm target_pose to start processing an episode
         if "arm target_pose" in line:
-            arm_type = "left" if "left arm" in line else "right"
-            print(f"\nProcessing {arm_type} arm episode:")
-            episode_data, i = process_episode_data(output_lines, i)
+            print(f"\nProcessing episode starting at line {i}:")
+            episode_data, i = process_full_episode_data(output_lines, i)
             
             if episode_data is not None:
-                episode_name = f"{arm_type}_arm_{episode_count[arm_type]}"
-                print(f"  Successfully processed {episode_name}")
-                all_episodes[episode_name] = {
-                    "target_poses": episode_data["target_poses"],
-                    "constraint_poses": episode_data["constraint_poses"]
-                }
-                episode_count[arm_type] += 1
+                # Process left arm data if exists
+                if "left" in episode_data:
+                    episode_name = f"left_arm_{episode_count['left']}"
+                    print(f"  Successfully processed {episode_name} with {len(episode_data['left']['target_poses'])} poses")
+                    all_episodes[episode_name] = episode_data["left"]
+                    episode_count["left"] += 1
+                
+                # Process right arm data if exists
+                if "right" in episode_data:
+                    episode_name = f"right_arm_{episode_count['right']}"
+                    print(f"  Successfully processed {episode_name} with {len(episode_data['right']['target_poses'])} poses")
+                    all_episodes[episode_name] = episode_data["right"]
+                    episode_count["right"] += 1
         else:
             i += 1
     
